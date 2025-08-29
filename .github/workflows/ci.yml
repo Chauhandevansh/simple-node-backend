@@ -121,7 +121,15 @@ jobs:
           echo "CommandId=$CMD_ID"
 
           # Wait until command finishes and fetch status
-          aws ssm wait command-executed --command-id "$CMD_ID" --targets "Key=tag:Role,Values=simple-node-backend"
-          STATUS=$(aws ssm list-command-invocations --command-id "$CMD_ID" --details --query "CommandInvocations[0].Status" --output text)
+          aws ssm wait command-executed \
+            --command-id "$CMD_ID" \
+            --instance-id "${{ vars.EC2_INSTANCE_ID }}"
+
+          STATUS=$(aws ssm list-command-invocations \
+            --command-id "$CMD_ID" \
+            --details \
+            --query "CommandInvocations[0].Status" \
+            --output text)
+
           echo "SSM status: $STATUS"
           test "$STATUS" = "Success"
