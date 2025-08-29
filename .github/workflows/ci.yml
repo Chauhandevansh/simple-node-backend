@@ -92,6 +92,7 @@ jobs:
         run: |
           # Make app dir on first run and ensure PM2 + Node exist
           aws ssm send-command \
+            aws ssm send-command \
             --region ${{ vars.AWS_REGION }} \
             --document-name "AWS-RunShellScript" \
             --targets "Key=instanceIds,Values=${{ vars.EC2_INSTANCE_ID }}" \
@@ -121,9 +122,11 @@ jobs:
           echo "CommandId=$CMD_ID"
 
           # Wait until command finishes and fetch status
+          
           aws ssm wait command-executed \
             --command-id "$CMD_ID" \
             --instance-id "${{ vars.EC2_INSTANCE_ID }}"
+
 
           STATUS=$(aws ssm list-command-invocations \
             --command-id "$CMD_ID" \
