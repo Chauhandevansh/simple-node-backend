@@ -67,7 +67,7 @@ jobs:
           # Make app dir on first run and ensure PM2 + Node exist
           aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --instance-ids ${{ vars.EC2_INSTANCE_ID }} \
             --comment "Bootstrap app dir if needed" \
             --parameters 'commands=["mkdir -p '"${APP_DIR}"'/releases","command -v node || sudo apt-get install -y nodejs || true","command -v pm2 || sudo npm i -g pm2 || true"]' \
             --output json >/dev/null
@@ -78,7 +78,7 @@ jobs:
           # Run the deploy script with args: BUCKET KEY PARAM_PATH APP_DIR PORT
           CMD_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --instance-ids ${{ vars.EC2_INSTANCE_ID }} \
             --comment "Deploy ${{ env.S3_KEY }}" \
             --parameters commands='[
               "set -euo pipefail",
