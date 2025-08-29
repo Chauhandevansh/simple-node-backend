@@ -73,7 +73,7 @@ jobs:
           aws ssm send-command \
             --region ${{ vars.AWS_REGION }} \
             --document-name "AWS-RunShellScript" \
-            --instance-ids "i-0fecee189b28bdffd" \
+            --instance-ids i-0fecee189b28bdffd \
             --comment "Bootstrap app dir if needed" \
             --parameters 'commands=["mkdir -p '"${APP_DIR}"'/releases","command -v node || sudo apt-get install -y nodejs || true","command -v pm2 || sudo npm i -g pm2 || true"]' \
             --output json >/dev/null
@@ -85,7 +85,7 @@ jobs:
           CMD_ID=$(aws ssm send-command \
             --region ${{ vars.AWS_REGION }} \
             --document-name "AWS-RunShellScript" \
-            --instance-ids "i-0fecee189b28bdffd" \
+            --instance-ids i-0fecee189b28bdffd \
             --comment "Deploy ${{ env.S3_KEY }}" \
             --parameters commands='[
               "set -euo pipefail",
