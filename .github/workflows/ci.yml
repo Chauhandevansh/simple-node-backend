@@ -62,6 +62,11 @@ jobs:
       - name: Upload artifact to S3
         run: aws s3 cp release.zip "s3://${{ env.ARTIFACT_BUCKET }}/${{ env.S3_KEY }}"
 
+      - name: Debug EC2 ID
+        run: |
+        echo "EC2_INSTANCE_ID from vars: ${{ vars.EC2_INSTANCE_ID }}"
+        echo "EC2_INSTANCE_ID from secrets: ${{ secrets.EC2_INSTANCE_ID }}"
+  
       - name: Trigger SSM deploy
         run: |
           # Make app dir on first run and ensure PM2 + Node exist
