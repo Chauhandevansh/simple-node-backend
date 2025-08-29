@@ -1,3 +1,4 @@
+/* eslint-env node */
 module.exports = {
   apps: [{
     name: "simple-node-backend",
