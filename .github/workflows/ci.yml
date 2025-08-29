@@ -78,7 +78,7 @@ jobs:
           # Run the deploy script with args: BUCKET KEY PARAM_PATH APP_DIR PORT
           CMD_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --targets "Key=instanceIds,Values=${{ secrets.EC2_INSTANCE_ID }}" \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --comment "Deploy ${{ env.S3_KEY }}" \
             --parameters commands='[
               "set -euo pipefail",
