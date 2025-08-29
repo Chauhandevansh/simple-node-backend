@@ -67,7 +67,7 @@ jobs:
           # Make app dir on first run and ensure PM2 + Node exist
           aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --targets "Key=tag:Role,Values=simple-node-backend" \
+            --targets "Key=instanceIds,Values=${{ secrets.EC2_INSTANCE_ID }}" \
             --comment "Bootstrap app dir if needed" \
             --parameters commands='[
               "mkdir -p '"${APP_DIR}"'/releases",
