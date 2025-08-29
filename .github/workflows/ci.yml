@@ -71,6 +71,7 @@ jobs:
         run: |
           # Make app dir on first run and ensure PM2 + Node exist
           aws ssm send-command \
+            --region ${{ vars.AWS_REGION }} \
             --document-name "AWS-RunShellScript" \
             --instance-ids "i-0fecee189b28bdffd" \
             --comment "Bootstrap app dir if needed" \
@@ -82,6 +83,7 @@ jobs:
 
           # Run the deploy script with args: BUCKET KEY PARAM_PATH APP_DIR PORT
           CMD_ID=$(aws ssm send-command \
+            --region ${{ vars.AWS_REGION }} \
             --document-name "AWS-RunShellScript" \
             --instance-ids "i-0fecee189b28bdffd" \
             --comment "Deploy ${{ env.S3_KEY }}" \
