@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+set -eu
 
 # Args from CI
 BUCKET="${1?bucket}"
