@@ -4,9 +4,9 @@ set -euo pipefail
 # Args from CI
 BUCKET="${1?bucket}"
 KEY="${2?key}"               # e.g., releases/<sha>.zip
-PARAM_PATH="${3?/ssm/path}" # e.g., /simple-node-backend/prod
-APP_DIR="${4?/app/dir}"     # e.g., /opt/apps/simple-node-backend
-SERVICE_PORT="${5?port}"    # e.g., 3000
+PARAM_PATH="${3?/ssm/path}"  # e.g., /simple-node-backend/prod
+APP_DIR="${4?/app/dir}"      # e.g., /opt/apps/simple-node-backend
+SERVICE_PORT="${5?port}"     # e.g., 3000
 
 RELEASE_SHA="$(basename "$KEY" .zip)"
 RELEASE_DIR="$APP_DIR/releases/$RELEASE_SHA"
@@ -15,12 +15,15 @@ PREV_TARGET="$(readlink -f "$CURRENT_LINK" || true)"
 
 echo "==> Deploying $KEY to $RELEASE_DIR"
 
+# 1️⃣ Prepare release directory
 mkdir -p "$RELEASE_DIR"
+
+# 2️⃣ Download and unzip release
 aws s3 cp "s3://$BUCKET/$KEY" "/tmp/$RELEASE_SHA.zip"
 unzip -o "/tmp/$RELEASE_SHA.zip" -d "$RELEASE_DIR"
 rm -f "/tmp/$RELEASE_SHA.zip"
 
-# Render .env from Parameter Store
+# 3️⃣ Render .env from Parameter Store
 echo "==> Rendering .env from $PARAM_PATH"
 aws ssm get-parameters-by-path --path "$PARAM_PATH" --with-decryption \
   --query "Parameters[].{Name:Name,Value:Value}" --output text > /tmp/params.txt
@@ -32,32 +35,36 @@ while IFS=$'\t' read -r name value; do
 done < /tmp/params.txt
 rm -f /tmp/params.txt
 
-# Install prod deps
+# 4️⃣ Install prod dependencies
 cd "$RELEASE_DIR"
 npm ci --omit=dev
 
-# Atomic swap
+# 5️⃣ Atomic swap
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-# PM2 under ubuntu user
+# 6️⃣ PM2 management
 export PATH="$PATH:/usr/bin:/usr/local/bin"
-if su - ubuntu -c "pm2 describe simple-node-backend" >/dev/null 2>&1; then
-  su - ubuntu -c "pm2 reload simple-node-backend --update-env"
-else
-  su - ubuntu -c "pm2 start '$CURRENT_LINK/ecosystem.config.js'"
-fi
+
+# Remove any old process to avoid path issues
+su - ubuntu -c "pm2 delete simple-node-backend || true"
+
+# Start or reload from ecosystem.config.js using current release
+su - ubuntu -c "pm2 start '$CURRENT_LINK/ecosystem.config.js' --update-env"
 su - ubuntu -c "pm2 save" || true
 
-# Health check
+# 7️⃣ Health check
 echo "==> Health check on port $SERVICE_PORT"
 sleep 2
 
 if ! curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
   echo "!! Health check FAILED, rolling back"
+
+  # Rollback to previous release if exists
   if [ -n "$PREV_TARGET" ] && [ -d "$PREV_TARGET" ]; then
     ln -sfn "$PREV_TARGET" "$CURRENT_LINK"
-    su - ubuntu -c "pm2 reload simple-node-backend" || true
+    su - ubuntu -c "pm2 reload simple-node-backend || true"
   fi
+
   exit 1
 fi
 
