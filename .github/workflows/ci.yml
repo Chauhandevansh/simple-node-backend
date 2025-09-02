@@ -76,15 +76,13 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Role,Values=simple-node-backend" \
             --comment "Bootstrap app dir + Node/PM2 if needed (Ubuntu)" \
-            --parameters commands='[
-              "set -euo pipefail",
-              "export DEBIAN_FRONTEND=noninteractive",
-              "mkdir -p '"${APP_DIR}"'/releases",
-              "apt-get update -y",
-              "apt-get install -y curl ca-certificates gnupg unzip",
-              "command -v node || (curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs)",
-              "command -v pm2 || npm i -g pm2"
-            ]' >/dev/null
+            --parameters 'commands=["/bin/bash -c \"set -euo pipefail; \
+              export DEBIAN_FRONTEND=noninteractive; \
+              mkdir -p '"${APP_DIR}"'/releases; \
+              apt-get update -y; \
+              apt-get install -y curl ca-certificates gnupg unzip; \
+              command -v node || (curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs); \
+              command -v pm2 || npm i -g pm2\""]' >/dev/null
 
       - name: Upload deploy script to S3
         run: aws s3 cp deploy/ssm-deploy.sh "s3://${ARTIFACT_BUCKET}/releases/ssm-deploy.sh"
@@ -96,13 +94,11 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Role,Values=simple-node-backend" \
             --comment "Deploy ${{ env.S3_KEY }}" \
-            --parameters commands='[
-              "set -euo pipefail",
-              "mkdir -p /opt/tmp && cd /opt/tmp",
-              "aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh ./ssm-deploy.sh",
-              "chmod +x ./ssm-deploy.sh",
-              "./ssm-deploy.sh '"${ARTIFACT_BUCKET}"' '"${S3_KEY}"' '"${PARAM_PATH}"' '"${APP_DIR}"' '"${SERVICE_PORT}"'"
-            ]' \
+            --parameters 'commands=["/bin/bash -c \"set -euo pipefail; \
+              mkdir -p /opt/tmp && cd /opt/tmp; \
+              aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh ./ssm-deploy.sh; \
+              chmod +x ./ssm-deploy.sh; \
+              ./ssm-deploy.sh '"${ARTIFACT_BUCKET}"' '"${S3_KEY}"' '"${PARAM_PATH}"' '"${APP_DIR}"' '"${SERVICE_PORT}"'\""]' \
             --query "Command.CommandId" --output text)
           echo "cmd=$CMD_ID" >> $GITHUB_OUTPUT
 
