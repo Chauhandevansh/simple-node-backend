@@ -36,17 +36,17 @@ rm -f /tmp/params.txt
 cd "$RELEASE_DIR"
 npm ci --omit=dev
 
-# Atomic symlink swap
+# Atomic swap
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-# Start/reload PM2
+# PM2 under ubuntu user
 export PATH="$PATH:/usr/bin:/usr/local/bin"
-if pm2 describe simple-node-backend >/dev/null 2>&1; then
-  pm2 reload simple-node-backend --update-env
+if su - ubuntu -c "pm2 describe simple-node-backend" >/dev/null 2>&1; then
+  su - ubuntu -c "pm2 reload simple-node-backend --update-env"
 else
-  pm2 start "$CURRENT_LINK/ecosystem.config.js"
+  su - ubuntu -c "pm2 start '$CURRENT_LINK/ecosystem.config.js'"
 fi
-pm2 save || true
+su - ubuntu -c "pm2 save" || true
 
 # Health check
 echo "==> Health check on port $SERVICE_PORT"
@@ -60,7 +60,7 @@ if [ "$HC" -ne 0 ]; then
   echo "!! Health check FAILED, rolling back"
   if [ -n "$PREV_TARGET" ] && [ -d "$PREV_TARGET" ]; then
     ln -sfn "$PREV_TARGET" "$CURRENT_LINK"
-    pm2 reload simple-node-backend || true
+    su - ubuntu -c "pm2 reload simple-node-backend" || true
   fi
   exit 1
 fi

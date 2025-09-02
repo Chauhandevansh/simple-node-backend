@@ -1,0 +1,137 @@
+name: ci
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  test-ssm:
+    name: Test SSM Connection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-south-1   # change to your region
+
+      - name: Run SSM test command
+        run: |
+          echo "Testing SSM connectivity..."
+          aws ssm send-command \
+            --targets "Key=instanceIds,Values=${{ vars.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Test SSM connectivity" \
+            --parameters 'commands=["uptime"]' \
+            --region ap-south-1 \
+            --output text      
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build-test
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ARTIFACT_BUCKET: ${{ vars.ARTIFACT_BUCKET }}
+      PARAM_PATH: ${{ vars.PARAM_PATH }}
+      APP_DIR: ${{ vars.APP_DIR }}
+      SERVICE_PORT: ${{ vars.SERVICE_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+      - name: Create release zip
+        run: |
+          mkdir -p artifact
+          cp -r dist package.json package-lock.json ecosystem.config.js artifact/
+          cd artifact && zip -r ../release.zip . && cd -
+          echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "S3_KEY=releases/$(git rev-parse --short HEAD).zip" >> $GITHUB_ENV
+
+      - name: Configure AWS creds (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload artifact to S3
+        run: aws s3 cp release.zip "s3://${{ env.ARTIFACT_BUCKET }}/${{ env.S3_KEY }}"
+
+      - name: Debug EC2 ID
+        run: |
+         echo "EC2_INSTANCE_ID from vars: ${{ vars.EC2_INSTANCE_ID }}"
+         echo "EC2_INSTANCE_ID from secrets: ${{ secrets.EC2_INSTANCE_ID }}"
+  
+      - name: Trigger SSM deploy
+        run: |
+          # Make app dir on first run and ensure PM2 + Node exist
+          aws ssm send-command \
+          --region ${{ vars.AWS_REGION }} \
+          --document-name "AWS-RunShellScript" \
+          --targets "Key=instanceIds,Values=${{ vars.EC2_INSTANCE_ID }}" \
+          --comment "Bootstrap app dir if needed" \
+          --parameters 'commands=["mkdir -p '"${APP_DIR}"'/releases","command -v node || sudo apt-get install -y nodejs || true","command -v pm2 || sudo npm i -g pm2 || true"]' \
+          --output json \
+          --debug
+
+          # Upload deploy script to S3 (so SSM can download/execute it)
+          aws s3 cp deploy/ssm-deploy.sh "s3://${ARTIFACT_BUCKET}/releases/ssm-deploy.sh"
+
+          # Run the deploy script with args: BUCKET KEY PARAM_PATH APP_DIR PORT
+          CMD_ID=$(aws ssm send-command \
+            --region ${{ vars.AWS_REGION }} \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=instanceIds,Values=${{ vars.EC2_INSTANCE_ID }}" \
+            --comment "Deploy ${{ env.S3_KEY }}" \
+            --parameters commands='[
+              "set -euo pipefail",
+              "mkdir -p /opt/tmp && cd /opt/tmp",
+              "aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh ./ssm-deploy.sh",
+              "chmod +x ./ssm-deploy.sh",
+              "./ssm-deploy.sh '"${ARTIFACT_BUCKET}"' '"${S3_KEY}"' '"${PARAM_PATH}"' '"${APP_DIR}"' '"${SERVICE_PORT}"'"
+            ]' \
+            --query "Command.CommandId" --output text)
+
+          echo "CommandId=$CMD_ID"
+
+          # Wait until command finishes and fetch status
+          
+          aws ssm wait command-executed \
+            --command-id "$CMD_ID" \
+            --instance-id "${{ vars.EC2_INSTANCE_ID }}"
+
+
+          STATUS=$(aws ssm list-command-invocations \
+            --command-id "$CMD_ID" \
+            --details \
+            --query "CommandInvocations[0].Status" \
+            --output text)
+
+          echo "SSM status: $STATUS"
+          test "$STATUS" = "Success"
