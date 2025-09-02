@@ -67,7 +67,7 @@ jobs:
           IDS=$(aws ec2 describe-instances \
             --filters "Name=tag:App,Values=simple-node-backend" "Name=tag:Env,Values=prod" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" --output text)
-          if [ -z "$IDS" ]; then echo "No instances matched"; exit 1; fi
+          if [ -z "$IDS" ]; then echo "❌ No running instances matched"; exit 1; fi
           echo "ids=$IDS" >> $GITHUB_OUTPUT
 
       - name: Bootstrap prerequisites on instance (Ubuntu)
@@ -75,14 +75,18 @@ jobs:
           aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Role,Values=simple-node-backend" \
-            --comment "Bootstrap app dir + Node/PM2 if needed (Ubuntu)" \
-            --parameters 'commands=["/bin/bash -c \"set -euo pipefail; \
+            --comment "Bootstrap prerequisites" \
+            --parameters 'commands=["/bin/bash -c \"set -eu; \
               export DEBIAN_FRONTEND=noninteractive; \
               mkdir -p '"${APP_DIR}"'/releases; \
               apt-get update -y; \
               apt-get install -y curl ca-certificates gnupg unzip; \
-              command -v node || (curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs); \
-              command -v pm2 || npm i -g pm2\""]' >/dev/null
+              if ! command -v node >/dev/null 2>&1; then \
+                curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs; \
+              fi; \
+              if ! command -v pm2 >/dev/null 2>&1; then \
+                npm i -g pm2; \
+              fi\""]' >/dev/null
 
       - name: Upload deploy script to S3
         run: aws s3 cp deploy/ssm-deploy.sh "s3://${ARTIFACT_BUCKET}/releases/ssm-deploy.sh"
@@ -94,7 +98,7 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Role,Values=simple-node-backend" \
             --comment "Deploy ${{ env.S3_KEY }}" \
-            --parameters 'commands=["/bin/bash -c \"set -euo pipefail; \
+            --parameters 'commands=["/bin/bash -c \"set -eu; \
               mkdir -p /opt/tmp && cd /opt/tmp; \
               aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh /opt/tmp/ssm-deploy.sh; \
               chmod +x /opt/tmp/ssm-deploy.sh; \
@@ -105,6 +109,7 @@ jobs:
       - name: Wait and verify per instance
         run: |
           for ID in ${{ steps.ids.outputs.ids }}; do
+            echo "⏳ Waiting for deploy on $ID ..."
             aws ssm wait command-executed --command-id "${{ steps.ssm.outputs.cmd }}" --instance-id "$ID"
             STATUS=$(aws ssm get-command-invocation --command-id "${{ steps.ssm.outputs.cmd }}" --instance-id "$ID" --query "Status" --output text)
             echo "$ID => $STATUS"

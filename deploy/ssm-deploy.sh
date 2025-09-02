@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 
 # Args from CI
 BUCKET="${1?bucket}"
@@ -51,12 +51,8 @@ su - ubuntu -c "pm2 save" || true
 # Health check
 echo "==> Health check on port $SERVICE_PORT"
 sleep 2
-set +e
-curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null
-HC=$?
-set -e
 
-if [ "$HC" -ne 0 ]; then
+if ! curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
   echo "!! Health check FAILED, rolling back"
   if [ -n "$PREV_TARGET" ] && [ -d "$PREV_TARGET" ]; then
     ln -sfn "$PREV_TARGET" "$CURRENT_LINK"
