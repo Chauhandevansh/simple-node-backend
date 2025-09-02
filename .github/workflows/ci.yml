@@ -96,9 +96,9 @@ jobs:
             --comment "Deploy ${{ env.S3_KEY }}" \
             --parameters 'commands=["/bin/bash -c \"set -euo pipefail; \
               mkdir -p /opt/tmp && cd /opt/tmp; \
-              aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh ./ssm-deploy.sh; \
-              chmod +x ./ssm-deploy.sh; \
-              ./ssm-deploy.sh '"${ARTIFACT_BUCKET}"' '"${S3_KEY}"' '"${PARAM_PATH}"' '"${APP_DIR}"' '"${SERVICE_PORT}"'\""]' \
+              aws s3 cp s3://'${ARTIFACT_BUCKET}'/releases/ssm-deploy.sh /opt/tmp/ssm-deploy.sh; \
+              chmod +x /opt/tmp/ssm-deploy.sh; \
+              /opt/tmp/ssm-deploy.sh '"${ARTIFACT_BUCKET}"' '"${S3_KEY}"' '"${PARAM_PATH}"' '"${APP_DIR}"' '"${SERVICE_PORT}"'\""]' \
             --query "Command.CommandId" --output text)
           echo "cmd=$CMD_ID" >> $GITHUB_OUTPUT
 
