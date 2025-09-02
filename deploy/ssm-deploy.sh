@@ -56,7 +56,7 @@ su - ubuntu -c "pm2 save" || true
 echo "==> Health check on port $SERVICE_PORT"
 
 max_retries=15     # increase retries to give server more time
-retry_delay=2      # seconds between attempts
+retry_delay=3      # seconds between attempts
 success=0
 
 for i in $(seq 1 $max_retries); do
