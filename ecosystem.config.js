@@ -2,7 +2,7 @@
 module.exports = {
   apps: [{
     name: "simple-node-backend",
-    script: "dist/server.js",
+    script: "current/dist/server.js", // use symlink
     env: { NODE_ENV: "production" }
   }]
 };
