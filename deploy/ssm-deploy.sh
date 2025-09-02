@@ -52,20 +52,34 @@ su - ubuntu -c "pm2 delete simple-node-backend || true"
 su - ubuntu -c "pm2 start '$CURRENT_LINK/dist/server.js' --name simple-node-backend --update-env"
 su - ubuntu -c "pm2 save" || true
 
-# 7️⃣ Health check
+# 7️⃣ Health check with retries
 echo "==> Health check on port $SERVICE_PORT"
-sleep 2
 
-if ! curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
-  echo "!! Health check FAILED, rolling back"
+max_retries=10     # number of attempts
+retry_delay=2      # seconds between attempts
+success=0
 
-  # Rollback to previous release if exists
-  if [ -n "$PREV_TARGET" ] && [ -d "$PREV_TARGET" ]; then
-    ln -sfn "$PREV_TARGET" "$CURRENT_LINK"
-    su - ubuntu -c "pm2 reload simple-node-backend || true"
-  fi
+for i in $(seq 1 $max_retries); do
+    if curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
+        success=1
+        break
+    else
+        echo "Health check failed, retrying ($i/$max_retries)..."
+        sleep $retry_delay
+    fi
+done
 
-  exit 1
+if [ "$success" -ne 1 ]; then
+    echo "!! Health check FAILED, rolling back"
+
+    # Rollback to previous release if exists
+    if [ -n "$PREV_TARGET" ] && [ -d "$PREV_TARGET" ]; then
+        ln -sfn "$PREV_TARGET" "$CURRENT_LINK"
+        su - ubuntu -c "pm2 reload simple-node-backend || true"
+    fi
+
+    exit 1
 fi
 
 echo "==> Deploy success: $RELEASE_SHA"
+
