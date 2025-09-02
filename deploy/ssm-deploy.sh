@@ -55,18 +55,22 @@ su - ubuntu -c "pm2 save" || true
 # 7️⃣ Health check with retries
 echo "==> Health check on port $SERVICE_PORT"
 
-max_retries=10     # number of attempts
+max_retries=15     # increase retries to give server more time
 retry_delay=2      # seconds between attempts
 success=0
 
 for i in $(seq 1 $max_retries); do
-    if curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
-        success=1
-        break
-    else
-        echo "Health check failed, retrying ($i/$max_retries)..."
-        sleep $retry_delay
+    # Check if PM2 process is online
+    status=$(su - ubuntu -c "pm2 describe simple-node-backend | grep status | awk '{print \$4}'")
+    if [ "$status" = "online" ]; then
+        # Try health endpoint
+        if curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
+            success=1
+            break
+        fi
     fi
+    echo "Health check failed, retrying ($i/$max_retries)..."
+    sleep $retry_delay
 done
 
 if [ "$success" -ne 1 ]; then
@@ -82,4 +86,5 @@ if [ "$success" -ne 1 ]; then
 fi
 
 echo "==> Deploy success: $RELEASE_SHA"
+
 
