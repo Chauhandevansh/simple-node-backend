@@ -23,6 +23,9 @@ aws s3 cp "s3://$BUCKET/$KEY" "/tmp/$RELEASE_SHA.zip"
 unzip -o "/tmp/$RELEASE_SHA.zip" -d "$RELEASE_DIR"
 rm -f "/tmp/$RELEASE_SHA.zip"
 
+# 2.1️⃣ Ensure clean node_modules
+rm -rf "$RELEASE_DIR/node_modules"
+
 # 3️⃣ Render .env from Parameter Store
 echo "==> Rendering .env from $PARAM_PATH"
 aws ssm get-parameters-by-path --path "$PARAM_PATH" --with-decryption \
@@ -35,11 +38,11 @@ while IFS=$'\t' read -r name value; do
 done < /tmp/params.txt
 rm -f /tmp/params.txt
 
-# 4️⃣ Install prod dependencies
+# 4️⃣ Install prod dependencies inside release directory
 cd "$RELEASE_DIR"
 npm ci --omit=dev
 
-# 5️⃣ Atomic swap
+# 5️⃣ Atomic swap (update current symlink AFTER installing)
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
 # 6️⃣ PM2 management
@@ -48,15 +51,15 @@ export PATH="$PATH:/usr/bin:/usr/local/bin"
 # Stop old process if running
 su - ubuntu -c "pm2 delete simple-node-backend || true"
 
-# Start or reload using the symlink to the current release
+# Start using the symlinked release with updated environment
 su - ubuntu -c "pm2 start '$CURRENT_LINK/dist/server.js' --name simple-node-backend --update-env"
 su - ubuntu -c "pm2 save" || true
 
 # 7️⃣ Health check with retries
 echo "==> Health check on port $SERVICE_PORT"
 
-max_retries=15     # increase retries to give server more time
-retry_delay=3      # seconds between attempts
+max_retries=15
+retry_delay=3
 success=0
 
 for i in $(seq 1 $max_retries); do
@@ -64,7 +67,7 @@ for i in $(seq 1 $max_retries); do
     status=$(su - ubuntu -c "pm2 describe simple-node-backend | grep status | awk '{print \$4}'")
     if [ "$status" = "online" ]; then
         # Try health endpoint
-        if curl -fsS "http://localhost:$SERVICE_PORT/health" >/dev/null; then
+        if curl -fsS "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null; then
             success=1
             break
         fi
@@ -86,5 +89,3 @@ if [ "$success" -ne 1 ]; then
 fi
 
 echo "==> Deploy success: $RELEASE_SHA"
-
-
