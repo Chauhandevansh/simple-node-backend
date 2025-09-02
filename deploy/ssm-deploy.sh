@@ -45,11 +45,11 @@ ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 # 6️⃣ PM2 management
 export PATH="$PATH:/usr/bin:/usr/local/bin"
 
-# Remove any old process to avoid path issues
+# Stop old process if running
 su - ubuntu -c "pm2 delete simple-node-backend || true"
 
-# Start or reload from ecosystem.config.js using current release
-su - ubuntu -c "pm2 start '$CURRENT_LINK/ecosystem.config.js' --update-env"
+# Start or reload using the symlink to the current release
+su - ubuntu -c "pm2 start '$CURRENT_LINK/dist/server.js' --name simple-node-backend --update-env"
 su - ubuntu -c "pm2 save" || true
 
 # 7️⃣ Health check
