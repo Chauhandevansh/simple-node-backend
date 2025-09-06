@@ -62,20 +62,6 @@ jobs:
           cp -r dist package.json package-lock.json ecosystem.config.js artifact/
           cd artifact && zip -r ../release.zip . && cd -
           echo "S3_KEY=releases/$(git rev-parse --short HEAD).zip" >> $GITHUB_ENV
-
-      - name: Show OIDC token claims
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          resp="$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")"
-          token="$(echo "$resp" | jq -r .value)"
-          echo "Decoded JWT claims:"
-          echo "$token" \
-            | awk -F. '{print $2}' \
-            | base64 -d -i 2>/dev/null || echo "$token" | awk -F. '{print $2}' | base64 --decode -i 2>/dev/null \
-            | jq
     
 
       - name: Configure AWS (OIDC)
