@@ -72,7 +72,11 @@ jobs:
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")"
           token="$(echo "$resp" | jq -r .value)"
           echo "Decoded JWT claims:"
-          echo "$token" | awk -F. '{print $2}' | base64 -d | jq    
+          echo "$token" \
+            | awk -F. '{print $2}' \
+            | base64 -d -i 2>/dev/null || echo "$token" | awk -F. '{print $2}' | base64 --decode -i 2>/dev/null \
+            | jq
+    
 
       - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4 # v4.3.1
