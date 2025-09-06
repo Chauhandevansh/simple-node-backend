@@ -53,7 +53,7 @@ su - ubuntu -c "pm2 delete simple-node-backend || true"
 
 # Start using the symlinked release with updated environment
 # su - ubuntu -c "NODE_ENV=production pm2 start '$CURRENT_LINK/dist/server.js' --name simple-node-backend --update-env"
-su - ubuntu -c "pm2 start '$CURRENT_LINK/dist/server.js' --name simple-node-backend --env-file '$CURRENT_LINK/.env' --update-env"
+su - ubuntu -c "pm2 startOrReload '$CURRENT_LINK/ecosystem.config.js' --name simple-node-backend --update-env"
 su - ubuntu -c "pm2 save" || true
 
 # 7️⃣ Health check with retries

@@ -1,4 +1,4 @@
-import "dotenv/config"; // load .env early
+import "dotenv/config"; // loads .env into process.env
 import { buildApp } from "./app";
 import { loadEnv } from "./config/env";
 import { logger } from "./lib/logger";
